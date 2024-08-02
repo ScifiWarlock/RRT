@@ -13,6 +13,21 @@ import math
 import random
 import argparse
 import os
+import imageio
+import urllib.request
+
+## Read the gif from the web, save to the disk
+url = "https://canada1.discourse-cdn.com/free1/uploads/phaser1/original/2X/d/de1e793e2294258cf77b3e03e9d357a299cce36c.gif"
+fname = "mygifTest.gif"
+
+gif = imageio.mimread(fname)
+nums = len(gif)
+print("Total {} frames in the gif!".format(nums))
+
+# convert form RGB to BGR 
+imgs = [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in gif]
+# img3 = imgs[0].copy()
+# img = imgs[0].copy()
 
 class Nodes:
     """Class to store the RRT graph"""
@@ -24,14 +39,17 @@ class Nodes:
 
 # check collision
 def collision(x1,y1,x2,y2):
+
     color=[]
     x = list(np.arange(x1,x2,(x2-x1)/100))
     y = list(((y2-y1)/(x2-x1))*(x-x1) + y1)
     print("collision",x,y)
+    if cv2.waitKey(100)&0xFF == 27:
+        k = (k+1)%nums
     for i in range(len(x)):
         print(int(x[i]),int(y[i]))
         color.append(img[int(y[i]),int(x[i])])
-    if (0 in color):
+    if (0 in np.array(color)):
         return True #collision
     else:
         return False #no-collision
@@ -47,7 +65,7 @@ def check_collision(x1,y1,x2,y2):
 
     # TODO: trim the branch if its going out of image area
     # print("Image shape",img.shape)
-    hy,hx=img.shape
+    hy,hx=img.shape[:2]
     if y<0 or y>hy or x<0 or x>hx:
         print("Point out of image bound")
         directCon = False
@@ -88,8 +106,15 @@ def rnd_point(h,l):
     return (new_x,new_y)
 
 
-def RRT(img, img2, start, end, stepSize):
-    h,l= img.shape # dim of the loaded image
+def RRT(imgR, start, end, stepSize):
+   
+    k = 0
+    
+    global img3
+    global img
+    img3 = imgs[k].copy()
+    img = imgs[k].copy()
+    h,l= img.shape[:2] # dim of the loaded image
     # print(img.shape) # (384, 683)
     # print(h,l)
 
@@ -100,12 +125,13 @@ def RRT(img, img2, start, end, stepSize):
     node_list[0].parent_y.append(start[1])
 
     # display start and end
-    cv2.circle(img2, (start[0],start[1]), 5,(0,0,255),thickness=3, lineType=8)
-    cv2.circle(img2, (end[0],end[1]), 5,(0,0,255),thickness=3, lineType=8)
-
+    cv2.circle(img3, (start[0],start[1]), 5,(0,0,255),thickness=3, lineType=8)
+    cv2.circle(img3, (end[0],end[1]), 5,(0,0,255),thickness=3, lineType=8)
+    
     i=1
     pathFound = False
     while pathFound==False:
+        cv2.imshow("gif", imgs[k])
         nx,ny = rnd_point(h,l)
         print("Random points:",nx,ny)
 
@@ -127,18 +153,19 @@ def RRT(img, img2, start, end, stepSize):
             node_list[i].parent_x.append(tx)
             node_list[i].parent_y.append(ty)
 
-            cv2.circle(img2, (int(tx),int(ty)), 2,(0,0,255),thickness=3, lineType=8)
-            cv2.line(img2, (int(tx),int(ty)), (int(node_list[nearest_ind].x),int(node_list[nearest_ind].y)), (0,255,0), thickness=1, lineType=8)
-            cv2.line(img2, (int(tx),int(ty)), (end[0],end[1]), (255,0,0), thickness=2, lineType=8)
+            cv2.circle(img3, (int(tx),int(ty)), 2,(0,0,255),thickness=3, lineType=8)
+            cv2.line(img3, (int(tx),int(ty)), (int(node_list[nearest_ind].x),int(node_list[nearest_ind].y)), (0,255,0), thickness=1, lineType=8)
+            cv2.line(img3, (int(tx),int(ty)), (end[0],end[1]), (255,0,0), thickness=2, lineType=8)
 
             print("Path has been found")
             #print("parent_x",node_list[i].parent_x)
             for j in range(len(node_list[i].parent_x)-1):
-                cv2.line(img2, (int(node_list[i].parent_x[j]),int(node_list[i].parent_y[j])), (int(node_list[i].parent_x[j+1]),int(node_list[i].parent_y[j+1])), (255,0,0), thickness=2, lineType=8)
+                cv2.line(img3, (int(node_list[i].parent_x[j]),int(node_list[i].parent_y[j])), (int(node_list[i].parent_x[j+1]),int(node_list[i].parent_y[j+1])), (255,0,0), thickness=2, lineType=8)
             # cv2.waitKey(1)
-            cv2.imwrite("media/"+str(i)+".jpg",img2)
-            cv2.imwrite("out.jpg",img2)
+            cv2.imwrite("media/"+str(i)+".jpg",img3)
+            cv2.imwrite("out.jpg",img3)
             break
+
 
         elif nodeCon:
             print("Nodes connected")
@@ -152,21 +179,23 @@ def RRT(img, img2, start, end, stepSize):
             node_list[i].parent_y.append(ty)
             i=i+1
             # display
-            cv2.circle(img2, (int(tx),int(ty)), 2,(0,0,255),thickness=3, lineType=8)
-            cv2.line(img2, (int(tx),int(ty)), (int(node_list[nearest_ind].x),int(node_list[nearest_ind].y)), (0,255,0), thickness=1, lineType=8)
-            cv2.imwrite("media/"+str(i)+".jpg",img2)
-            cv2.imshow("sdc",img2)
+            cv2.circle(img3, (int(tx),int(ty)), 2,(0,0,255),thickness=3, lineType=8)
+            cv2.line(img3, (int(tx),int(ty)), (int(node_list[nearest_ind].x),int(node_list[nearest_ind].y)), (0,255,0), thickness=1, lineType=8)
+            cv2.imwrite("media/"+str(i)+".jpg",img3)
+            cv2.imshow("sdc",img3)
             cv2.waitKey(1)
             continue
 
         else:
             print("No direct con. and no node con. :( Generating new rnd numbers")
             continue
+    
+        k = (k+1)%nums
 
 def draw_circle(event,x,y,flags,param):
     global coordinates
     if event == cv2.EVENT_LBUTTONDBLCLK:
-        cv2.circle(img2,(x,y),5,(255,0,0),-1)
+        cv2.circle(img3,(x,y),5,(255,0,0),-1)
         coordinates.append(x)
         coordinates.append(y)
 
@@ -175,8 +204,6 @@ def draw_circle(event,x,y,flags,param):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description = 'Below are the params:')
-    parser.add_argument('-p', type=str, default='world2.png',metavar='ImagePath', action='store', dest='imagePath',
-                    help='Path of the image containing mazes')
     parser.add_argument('-s', type=int, default=10,metavar='Stepsize', action='store', dest='stepSize',
                     help='Step-size to be used for RRT branches')
     parser.add_argument('-start', type=int, default=[20,20], metavar='startCoord', dest='start', nargs='+',
@@ -188,14 +215,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # remove previously stored data
-    try:
-      os.system("rm -rf media")
-    except:
-      print("Dir already clean")
-    os.mkdir("media")
+    # try:
+    #   os.system("rm -rf media")
+    # except:
+    #   print("Dir already clean")
+    # ##os.mkdir("media")
+    # imdata = urllib.request.urlopen(url).read()
+    # imbytes = bytearray(imdata)
+    # open(fname,"wb+").write(imdata)
 
-    img = cv2.imread(args.imagePath,0) # load grayscale maze image
-    img2 = cv2.imread(args.imagePath) # load colored maze image
+## Read the gif from disk to `RGB`s using `imageio.miread` 
+
+
+## Display the gif
+
     start = tuple(args.start) #(20,20) # starting coordinate
     end = tuple(args.stop) #(450,250) # target coordinate
     stepSize = args.stepSize # stepsize for RRT
@@ -207,7 +240,7 @@ if __name__ == '__main__':
         cv2.namedWindow('image')
         cv2.setMouseCallback('image',draw_circle)
         while(1):
-            cv2.imshow('image',img2)
+            cv2.imshow('image',imgs)
             k = cv2.waitKey(20) & 0xFF
             if k == 27:
                 break
@@ -216,4 +249,5 @@ if __name__ == '__main__':
         end=(coordinates[2],coordinates[3])
 
     # run the RRT algorithm 
-    RRT(img, img2, start, end, stepSize)
+    RRT(imgs, start, end, stepSize)
+
